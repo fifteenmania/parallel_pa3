@@ -2,6 +2,7 @@
 #include <unistd.h>
 #include <time.h>
 #include <stdlib.h>
+#include <limits>
 #include "utils.hpp"
 
 #define TILE_WIDTH 16
@@ -45,35 +46,38 @@ void MatrixMulKernel(double *d_A, double *d_B, double *d_C, int width)
 void multiply_cuda()
 {
     int size = n*n*sizeof(double);
-    double *d_A, *d_B, *d_C;
+    double *d_A, *d_B, *d_D;
     cudaMalloc(&d_A, size);
     cudaMemcpy(d_A, A, size, cudaMemcpyHostToDevice);
     
     cudaMalloc(&d_B, size);
     cudaMemcpy(d_B, B, size, cudaMemcpyHostToDevice);
 
-    cudaMalloc(&d_C, size);  
+    cudaMalloc(&d_D, size);  
 
     // Kernel invoke
     int grid_width = (n+TILE_WIDTH-1)/TILE_WIDTH;
     dim3 dimGrid(grid_width, grid_width, 1);
     dim3 dimBlock(TILE_WIDTH, TILE_WIDTH, 1);
-    MatrixMulKernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_C, n);
+    MatrixMulKernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_D, n);
 
     // Copy result
-    cudaMemcpy(C, d_C, size, cudaMemcpyDeviceToHost);
+    cudaMemcpy(D, d_D, size, cudaMemcpyDeviceToHost);
     
     // Free device matrices
     cudaFree(d_A);
     cudaFree(d_B);
-    cudaFree(d_C);
+    cudaFree(d_D);
 }
 
 bool mat_equal()
 {
     for (int i=0; i<n*n; i++){
-        if (C[i] != D[i])
+        if (C[i] != D[i]){
+            cout << "Difference in " << i << endl;
+            cout << "with " << hex << C[i] << " and " << D[i] << endl;
             return false;
+        }
     }
     return true;
 }
@@ -108,6 +112,8 @@ int main(int argc, char **argv)
     clock_gettime(CLOCK_MONOTONIC, &end);
     cout << "Parallel: " << time_elapsed(begin, end) << " ms" << endl;
 
+    print_mat(C, n);
+    print_mat(D, n);
 #ifndef BENCH
     // correctness
     cout << "Correct:  " << mat_equal() << endl;
