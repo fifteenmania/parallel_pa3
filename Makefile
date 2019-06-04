@@ -11,7 +11,7 @@ all : P1 P2 P3
 all_bench : P1_bench P2 P3
 
 P1 : $(UTILS) P1.cu
-	nvcc -Xptxas -O3,-v --link utils.cpp P1.cu -o P1
+	nvcc -arch sm_52 -Xptxas -O3,-v --link utils.cpp P1.cu -o P1
 
 P2 : $(UTILS) P2.cpp
 	$(CXX) $(CFLAGS) utils.cpp P2.cpp -o P2 $(LDLIBS)

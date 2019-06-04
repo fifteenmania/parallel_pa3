@@ -75,7 +75,7 @@ bool mat_equal()
     for (int i=0; i<n*n; i++){
         if (C[i] != D[i]){
             cout << "Difference in " << i << endl;
-            cout << "with " << hex << C[i] << " and " << D[i] << endl;
+            cout << "with " << setprecision(21) << C[i] << " and " << D[i] << endl;
             return false;
         }
     }
@@ -112,6 +112,8 @@ int main(int argc, char **argv)
     clock_gettime(CLOCK_MONOTONIC, &end);
     cout << "Parallel: " << time_elapsed(begin, end) << " ms" << endl;
 
+    print_mat(A, n);
+    print_mat(B, n);
     print_mat(C, n);
     print_mat(D, n);
 #ifndef BENCH
