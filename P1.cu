@@ -96,7 +96,7 @@ void multiply_cuda()
     int grid_width = (n+TILE_WIDTH-1)/TILE_WIDTH;
     dim3 dimGrid(grid_width, grid_width, 1);
     dim3 dimBlock(TILE_WIDTH, TILE_WIDTH, 1);
-    MatrixMulKernelS<<<dimGrid, dimBlock>>>(d_A, d_B, d_D, n);
+    MatrixMulKernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_D, n);
 
     // Copy result
     cudaMemcpy(D, d_D, size, cudaMemcpyDeviceToHost);
