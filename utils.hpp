@@ -6,13 +6,14 @@
 #include <iomanip>
 #include <cstring>
 #include <math.h>
-#define SIM_THRES 1.0e-6
+#define SIM_THRES 5.0e-7
 
 typedef float fp;
 
 double time_elapsed(struct timespec &, struct timespec &);
 fp *init_zeros_mat(int);
 fp *init_rand_mat(int, int);
+fp *init_ones_mat(int);
 fp *init_zeros_vec(int);
 fp *init_rand_vec(int, int);
 void print_mat(fp *, int);

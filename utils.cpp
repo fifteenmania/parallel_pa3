@@ -37,6 +37,15 @@ fp *init_zeros_vec(int n)
     return A;
 }
 
+fp *init_ones_mat(int n)
+{
+    fp *A = (fp *)malloc(n*n*sizeof(fp));
+    for (int i=0; i<n*n; i++){
+        A[i] = 1;
+    }
+    return A;
+}
+
 fp *init_rand_vec(int n, int seed)
 {
     fp *A = (fp *)malloc(n*sizeof(fp));
@@ -95,6 +104,16 @@ fp l2_norm(fp *A, fp *B, int n)
     return sqrt(cum_error/n/n);
 }
 
+fp v_l2_norm(fp *A, fp *B, int n)
+{
+    fp cum_error = 0;
+    for (int i=0; i<n; i++){
+        fp error = A[i] - B[i];
+        cum_error += error * error;
+    }
+    return sqrt(cum_error/n);
+}
+
 fp max_norm(fp *A, fp *B, int n)
 {
     fp error;
@@ -105,7 +124,7 @@ fp max_norm(fp *A, fp *B, int n)
             max_error = error;
         }
     }
-    return max_error;
+    return max_error/n;
 }
 
 bool mat_equal(fp *A, fp *B, int n)

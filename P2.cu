@@ -5,7 +5,6 @@
 #include <math.h>
 #include <algorithm>
 #include "utils.hpp"
-#define SIM_THRES 0.000001
 #define SINGLE_SECTION 64
 
 using namespace std;
@@ -55,6 +54,8 @@ void GE_single()
     return;
 }
 
+
+/*
 void GE_omp()
 {
     for (int i=0; i<n-1-SINGLE_SECTION; i++){
@@ -86,7 +87,7 @@ void GE_omp()
         }
     }
     return;
-}
+}*/
 
 void backsub()
 {
@@ -107,16 +108,6 @@ void vmult()
             c[i] += A0[i*n+j] * b[j];
         }
     }
-}
-
-double l2_norm()
-{
-    double residual_sum = 0;
-    for (int i=0; i<n; i++){
-        double residual = c[i] - b0[i];
-        residual_sum += residual * residual;
-    }
-    return sqrt(residual_sum/n/n);
 }
 
 int main(int argc, char **argv)
@@ -147,7 +138,7 @@ int main(int argc, char **argv)
     // c = Ab
     vmult();
     // correctness
-    double resid = l2_norm();
+    double resid = v_l2_norm(c, b0, n);
     cout << "Residual: " << resid << endl;
     cout << "Correcct: " << (resid<SIM_THRES) << endl;
 

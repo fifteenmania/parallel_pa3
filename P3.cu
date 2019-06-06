@@ -6,6 +6,7 @@
 #include <omp.h>
 #include "utils.hpp"
 #define NUM_THREADS 6
+#define TILE_WIDTH 16
 
 int partition_sheet[NUM_THREADS];
 
@@ -104,11 +105,72 @@ void multiply_single(struct sparse_mtx *A, struct dense_mtx *B, struct dense_mtx
         }
     }
 }
-void multiply_pthread(struct sparse_mtx *A, struct dense_mtx *B, struct dense_mtx *C)
+
+__global__
+void SparseMMKernel(int A_nrow, int A_ncol, 
+        int B_ncol, 
+        float *d_Arow, float *d_Acol, 
+        float *d_Aval, float *d_Bval,
+        float *d_Cval)
 {
-    // TODO: Implement matrix multiplication with pthread. C=A*B
+    int row = blockDim.x * blockIdx.x + threadIdx.x;
+    int col = blockDim.y * blockIdx.y + threadIdx.y;
+    if ((row < nrow) && (col < ncol)){
+        int col_start = d_Arow[row];
+        int col_end = d_Arow[row + 1];
+        float Cval = 0;
+        for (int j=col_start; j<col_end; j++){
+            int B_row = d_Acol[j];
+            Cval += d_Aval[j] * d_Bval[B_row*B_ncol + col];
+        }
+        d_Cval[row*B_ncol + col] = Cval;
+    }
 }
 
+void multiply_cuda(struct sparse_mtx *A, struct dense_mtx *B, struct dense_mtx *C)
+{
+    C->nrow = A->nrow;
+    C->ncol = B->ncol;
+    int size = C->nrow*C->ncol*sizeof(float);
+    C->val = (float *)malloc(size);
+
+    float *d_Aval, *d_B, *d_C;
+    int32_t *d_Arow, *d_Acol; 
+    
+    // Copy to device
+    int size_Aval = (int) A->nnze * sizeof(float);
+    int size_Arow = (int) A->nrow * sizeof(int32_t);
+    int size_Acol = (int) A->ncol * sizeof(int32_t);
+    int size_Bval = (int) B->nrow * (int) B->ncol * sizeof(float);
+    int size_Cval = (int) A->nrow * (int) B->ncol * sizeof(float);
+    cudaMalloc(&d_Aval, size_Aval);
+    cudaMalloc(&d_Arow, size_Arow);
+    cudaMalloc(&d_Acol, size_Acol);
+    cudaMalloc(&d_B, size_Bval);
+    cudaMalloc(&d_C, size_Cval);
+
+    cudaMemcpy(d_Aval, A->val, size_Aval, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_Arow, A->row, size_Arow, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_Acol, A->col, size_Acol, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_B, B->val, size_Bval, cudaMemcpyHostToDevice);
+    
+    // Kernel invoke
+    int grid_width = (A->nrow + TILE_WIDTH - 1)/TILE_WIDTH;
+    int grid_height = (B->ncol + TILE_WIDTH - 1)/TILE_WIDTH;
+    dim3 dimGrid(grid_width, grid_height, 1);
+    dim3 dimBlock(TILE_WIDTH, TILE_WIDTH, 1);
+    SparseMMKernel<<<dimGrid, dimBlock>>>(A->nrow, A->ncol, B->ncol, d_Arow, d_Acol, d_Aval, d_Bval);
+
+    // Copy results
+    cudaMemcpy(C->val, d_C, size_Cval, cudaMemcpyDeviceToHost);
+
+    cudaFree(d_Aval);
+    cudaFree(d_Arow);
+    cudaFree(d_Acol);
+    cudaFree(d_B);
+    cudaFree(d_C);
+}
+ /*
 void multiply_openmp(struct sparse_mtx *A, struct dense_mtx *B, struct dense_mtx *C)
 {
     uint32_t ideal_workload = A->nnze/NUM_THREADS;
@@ -146,7 +208,7 @@ void multiply_openmp(struct sparse_mtx *A, struct dense_mtx *B, struct dense_mtx
                 C->val[i * C->ncol + k] += A->val[j] * B->val[B_row * B->ncol + k];
         }
     }
-}
+}*/
 
 bool mat_equal(struct dense_mtx *C1, struct dense_mtx *C2)
 {
@@ -183,6 +245,7 @@ int main(int argc, char **argv)
         free(A.col);
         free(A.val);
         std::cerr << "Invalid argument for the number of columns of B." << std::endl;
+        return 0;
     }
     B.val = (float *)malloc(sizeof(float) * B.nrow * B.ncol);
 

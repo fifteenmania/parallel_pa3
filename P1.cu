@@ -59,16 +59,19 @@ void MatrixMulKernelS(float *d_A, float *d_B, float *d_C, int width)
     if ((row_idx < width) && (col_idx < width)){
         float Cval = 0;
         for (int m=0; m<tile_max; m++){
-            int idx_Ay = m*TILE_WIDTH + tx;
-            int idx_A = row_idx*width + idx_Ay;
-            int idx_Bx = m*TILE_WIDTH + ty;
-            int idx_B = (idx_Bx)*width + col_idx;
-            if ((row_idx < width) && (idx_Ay < width) && (idx_Bx < width) && (col_idx < width)){
+            int idx_Ax = m*TILE_WIDTH + tx;
+            int idx_A = row_idx*width + idx_Ax;
+            int idx_By = m*TILE_WIDTH + ty;
+            int idx_B = (idx_By)*width + col_idx;
+            if ((row_idx < width) && (idx_Ax < width)){
                 subTileA[ty][tx] = d_A[idx_A];
+            } else{
+                subTileA[ty][tx] = 100;
+            }
+            if ((idx_By < width) && (col_idx < width)){
                 subTileB[ty][tx] = d_B[idx_B];
             } else{
-                subTileA[ty][tx] = 0;
-                subTileB[ty][tx] = 0;
+                subTileB[ty][tx] = 1;
             }
             __syncthreads();
             for (int k=0; k<TILE_WIDTH; k++){
@@ -96,7 +99,7 @@ void multiply_cuda()
     int grid_width = (n+TILE_WIDTH-1)/TILE_WIDTH;
     dim3 dimGrid(grid_width, grid_width, 1);
     dim3 dimBlock(TILE_WIDTH, TILE_WIDTH, 1);
-    MatrixMulKernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_D, n);
+    MatrixMulKernelS<<<dimGrid, dimBlock>>>(d_A, d_B, d_D, n);
 
     // Copy result
     cudaMemcpy(D, d_D, size, cudaMemcpyDeviceToHost);
@@ -116,8 +119,10 @@ int main(int argc, char **argv)
     n = atoi(argv[1]);
 
     int seed = time(NULL);
-    A = init_rand_mat(n, seed);
-    B = init_rand_mat(n, seed+1);
+    //A = init_rand_mat(n, seed);
+    //B = init_rand_mat(n, seed+1);
+    A = init_ones_mat(n);
+    B = init_ones_mat(n);
     C = (fp *)init_zeros_mat(n);
     D = (fp *)init_zeros_mat(n);
     
