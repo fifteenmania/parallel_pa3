@@ -6,13 +6,15 @@
 #include "utils.hpp"
 
 #define TILE_WIDTH 16
+//#define BENCH 1
 
 using namespace std;
 
+// fp == float
 // random matries
-double *A, *B = NULL;
+fp *A, *B = NULL;
 // results
-double *C, *D = NULL;
+fp *C, *D = NULL;
 // consts
 int n = 0;
 
@@ -28,16 +30,51 @@ void multiply_single()
 }
 
 __global__
-void MatrixMulKernel(double *d_A, double *d_B, double *d_C, int width)
+void MatrixMulKernel(fp *d_A, fp *d_B, fp *d_C, int width)
 {
     int row_idx = blockIdx.y*blockDim.y + threadIdx.y;
     int col_idx = blockIdx.x*blockDim.x + threadIdx.x;
     if ((row_idx < width) && (col_idx < width)){
-        double Cval = 0;
+        fp Cval = 0;
         for (int k=0; k<width; k++){
-            double Aval = d_A[row_idx*width+k];
-            double Bval = d_B[k*width+col_idx];
+            fp Aval = d_A[row_idx*width+k];
+            fp Bval = d_B[k*width+col_idx];
             Cval += Aval*Bval;
+        }
+        d_C[row_idx*width+col_idx] = Cval;
+    }
+}
+
+__global__
+void MatrixMulKernelS(float *d_A, float *d_B, float *d_C, int width)
+{
+    __shared__ float subTileA[TILE_WIDTH][TILE_WIDTH];
+    __shared__ float subTileB[TILE_WIDTH][TILE_WIDTH];
+    
+    int bx = blockIdx.x, by = blockIdx.y;
+    int tx = threadIdx.x, ty = threadIdx.y;
+    int row_idx = by*TILE_WIDTH + ty;
+    int col_idx = bx*TILE_WIDTH + tx;
+    int tile_max = (width+TILE_WIDTH-1)/TILE_WIDTH;
+    if ((row_idx < width) && (col_idx < width)){
+        float Cval = 0;
+        for (int m=0; m<tile_max; m++){
+            int idx_Ay = m*TILE_WIDTH + tx;
+            int idx_A = row_idx*width + idx_Ay;
+            int idx_Bx = m*TILE_WIDTH + ty;
+            int idx_B = (idx_Bx)*width + col_idx;
+            if ((row_idx < width) && (idx_Ay < width) && (idx_Bx < width) && (col_idx < width)){
+                subTileA[ty][tx] = d_A[idx_A];
+                subTileB[ty][tx] = d_B[idx_B];
+            } else{
+                subTileA[ty][tx] = 0;
+                subTileB[ty][tx] = 0;
+            }
+            __syncthreads();
+            for (int k=0; k<TILE_WIDTH; k++){
+                Cval += subTileA[ty][k] * subTileB[k][tx];
+            }
+            __syncthreads();
         }
         d_C[row_idx*width+col_idx] = Cval;
     }
@@ -45,8 +82,8 @@ void MatrixMulKernel(double *d_A, double *d_B, double *d_C, int width)
 
 void multiply_cuda()
 {
-    int size = n*n*sizeof(double);
-    double *d_A, *d_B, *d_D;
+    int size = n*n*sizeof(fp);
+    fp *d_A, *d_B, *d_D;
     cudaMalloc(&d_A, size);
     cudaMemcpy(d_A, A, size, cudaMemcpyHostToDevice);
     
@@ -59,7 +96,7 @@ void multiply_cuda()
     int grid_width = (n+TILE_WIDTH-1)/TILE_WIDTH;
     dim3 dimGrid(grid_width, grid_width, 1);
     dim3 dimBlock(TILE_WIDTH, TILE_WIDTH, 1);
-    MatrixMulKernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_D, n);
+    MatrixMulKernelS<<<dimGrid, dimBlock>>>(d_A, d_B, d_D, n);
 
     // Copy result
     cudaMemcpy(D, d_D, size, cudaMemcpyDeviceToHost);
@@ -68,18 +105,6 @@ void multiply_cuda()
     cudaFree(d_A);
     cudaFree(d_B);
     cudaFree(d_D);
-}
-
-bool mat_equal()
-{
-    for (int i=0; i<n*n; i++){
-        if (C[i] != D[i]){
-            cout << "Difference in " << i << endl;
-            cout << "with " << setprecision(21) << C[i] << " and " << D[i] << endl;
-            return false;
-        }
-    }
-    return true;
 }
 
 int main(int argc, char **argv)
@@ -93,8 +118,8 @@ int main(int argc, char **argv)
     int seed = time(NULL);
     A = init_rand_mat(n, seed);
     B = init_rand_mat(n, seed+1);
-    C = (double *)init_zeros_mat(n);
-    D = (double *)init_zeros_mat(n);
+    C = (fp *)init_zeros_mat(n);
+    D = (fp *)init_zeros_mat(n);
     
     struct timespec begin, end;
     // single thread
@@ -112,13 +137,15 @@ int main(int argc, char **argv)
     clock_gettime(CLOCK_MONOTONIC, &end);
     cout << "Parallel: " << time_elapsed(begin, end) << " ms" << endl;
 
-    print_mat(A, n);
-    print_mat(B, n);
+    //print_mat(A, n);
+    //print_mat(B, n);
     print_mat(C, n);
     print_mat(D, n);
 #ifndef BENCH
     // correctness
-    cout << "Correct:  " << mat_equal() << endl;
+    fp norm = max_norm(C, D, n);
+    cout << "residue:  " << norm << endl;
+    cout << "Correct:  " << (norm<SIM_THRES) << endl;
 #endif
     return 0;
 }

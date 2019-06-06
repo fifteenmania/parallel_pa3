@@ -5,16 +5,21 @@
 #include <stdlib.h>
 #include <iomanip>
 #include <cstring>
+#include <math.h>
+#define SIM_THRES 1.0e-6
 
+typedef float fp;
 
 double time_elapsed(struct timespec &, struct timespec &);
-double *init_zeros_mat(int);
-double *init_rand_mat(int, int);
-double *init_zeros_vec(int);
-double *init_rand_vec(int, int);
-void print_mat(double *, int);
-void print_vec(double *, int);
-double *cp_mat(double *, int);
-double *cp_vec(double *, int);
-
+fp *init_zeros_mat(int);
+fp *init_rand_mat(int, int);
+fp *init_zeros_vec(int);
+fp *init_rand_vec(int, int);
+void print_mat(fp *, int);
+void print_vec(fp *, int);
+fp *cp_mat(fp *, int);
+fp *cp_vec(fp *, int);
+fp l2_norm(fp *, fp *, int);
+fp max_norm(fp *, fp *, int);
+bool mat_equal(fp *, fp *, int);
 

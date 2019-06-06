@@ -1,8 +1,11 @@
-CXX = g++
+CXX = nvcc
 CFLAGS = -Wall -O3
 LDLIBS = -fopenmp
 RM = rm -f
 UTILS = utils.cpp utils.hpp
+
+ARCH = -arch sm_30
+NVFLAGS = -Xptxas -O3,-v
 
 .SUFFIXES : .cpp
 
@@ -11,13 +14,13 @@ all : P1 P2 P3
 all_bench : P1_bench P2 P3
 
 P1 : $(UTILS) P1.cu
-	nvcc -arch sm_52 -Xptxas -O3,-v --link utils.cpp P1.cu -o P1
+	$(CXX) $(ARCH) $(NVFLAGS) --link utils.cpp P1.cu -o P1
 
-P2 : $(UTILS) P2.cpp
-	$(CXX) $(CFLAGS) utils.cpp P2.cpp -o P2 $(LDLIBS)
+P2 : $(UTILS) P2.cu
+	$(CXX) $(NCFLAGS) --link utils.cpp P2.cu -o P2 
 
-P3 : mmreader.hpp mmreader.cpp $(UTILS) P3.cpp
-	$(CXX) $(CFLAGS) mmreader.cpp utils.cpp P3.cpp -o P3 $(LDLIBS) -std=c++11
+P3 : mmreader.hpp mmreader.cpp $(UTILS) P3.cu
+	$(CXX) $(NCFLAGS) --link mmreader.cpp utils.cpp P3.cu -o P3 
 
 P1_bench : $(UTILS) P1.cu
 	$(CXX) -DBENCH=1 $(CFLAGS) utils.cpp P1.cpp -o P1 $(LDLIBS)

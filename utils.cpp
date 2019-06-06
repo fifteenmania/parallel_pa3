@@ -9,61 +9,61 @@ double time_elapsed(struct timespec &start, struct timespec &end)
     return time;
 }
 
-double *init_zeros_mat(int n)
+fp *init_zeros_mat(int n)
 {
-    double *A = (double *)malloc(n*n*sizeof(double));
+    fp *A = (fp *)malloc(n*n*sizeof(fp));
     for (int i=0; i<n*n; i++){
         A[i] = 0;
     }
     return A;
 }
 
-double *init_rand_mat(int n, int seed)
+fp *init_rand_mat(int n, int seed)
 {
-    double *A = (double*)malloc(n*n*sizeof(double));
+    fp *A = (fp*)malloc(n*n*sizeof(fp));
     srand48(seed);
     for (int i=0; i<n*n; i++){
-        A[i] = drand48();
+        A[i] = (fp)drand48();
     }
     return A;
 }
 
-double *init_zeros_vec(int n)
+fp *init_zeros_vec(int n)
 {
-    double *A = (double *)malloc(n*sizeof(double));
+    fp *A = (fp *)malloc(n*sizeof(fp));
     for (int i=0; i<n; i++){
         A[i] = 0;
     }
     return A;
 }
 
-double *init_rand_vec(int n, int seed)
+fp *init_rand_vec(int n, int seed)
 {
-    double *A = (double *)malloc(n*sizeof(double));
+    fp *A = (fp *)malloc(n*sizeof(fp));
     srand48(seed);
     for (int i=0; i<n; i++){
-        A[i] = drand48();
+        A[i] = (fp)drand48();
     }
     return A;
 }
 
 
-double *cp_mat(double *A, int n)
+fp *cp_mat(double *A, int n)
 {
-    double *B = (double *)malloc(n*n*sizeof(double));
-    memcpy(B, A, n*n*sizeof(double));
+    fp *B = (fp *)malloc(n*n*sizeof(fp));
+    memcpy(B, A, n*n*sizeof(fp));
     return B;
 }
 
-double *cp_vec(double *A, int n)
+fp *cp_vec(fp *A, int n)
 {
-    double *B = (double *)malloc(n*sizeof(double));
-    memcpy(B, A, n*sizeof(double));
+    fp *B = (fp *)malloc(n*sizeof(fp));
+    memcpy(B, A, n*sizeof(fp));
     return B;
 }
 
 
-void print_mat(double *A, int n)
+void print_mat(fp *A, int n)
 {
     cout << setprecision(3) << fixed;
     for (int i=0; i<n; i++){
@@ -75,7 +75,7 @@ void print_mat(double *A, int n)
     cout << endl;
 }
 
-void print_vec(double *A, int n)
+void print_vec(fp *A, int n)
 {
     cout << setprecision(3) << fixed;
     for (int i=0; i<n; i++){
@@ -84,3 +84,31 @@ void print_vec(double *A, int n)
     cout << endl;
 }
 
+fp l2_norm(fp *A, fp *B, int n)
+{
+    fp error;
+    fp cum_error = 0;
+    for (int i=0; i<n*n; i++){
+        error = (A[i] - B[i]);
+        cum_error += error * error;
+    }
+    return sqrt(cum_error/n/n);
+}
+
+fp max_norm(fp *A, fp *B, int n)
+{
+    fp error;
+    fp max_error = 0;
+    for (int i=0; i<n*n; i++){
+        error = fabs(A[i] - B[i]);
+        if (error > max_error){
+            max_error = error;
+        }
+    }
+    return max_error;
+}
+
+bool mat_equal(fp *A, fp *B, int n)
+{
+    return max_norm(A, B, n) < SIM_THRES;
+}
