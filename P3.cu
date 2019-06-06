@@ -3,12 +3,11 @@
 #include <iostream>
 #include <sys/time.h>
 #include <unistd.h>
-#include <omp.h>
+#include <limits>
 #include "utils.hpp"
-#define NUM_THREADS 6
 #define TILE_WIDTH 16
 
-int partition_sheet[NUM_THREADS];
+//#define BENCH 1
 
 bool
 SCsrMatrixfromFile(struct sparse_mtx *A, const char* filePath)
@@ -107,21 +106,21 @@ void multiply_single(struct sparse_mtx *A, struct dense_mtx *B, struct dense_mtx
 }
 
 __global__
-void SparseMMKernel(int A_nrow, int A_ncol, 
-        int B_ncol, 
-        float *d_Arow, float *d_Acol, 
+void SparseMMKernel(const int A_nrow, const int A_ncol, 
+        const int B_ncol, 
+        int32_t *d_Arow, int32_t *d_Acol, 
         float *d_Aval, float *d_Bval,
         float *d_Cval)
 {
-    int row = blockDim.x * blockIdx.x + threadIdx.x;
-    int col = blockDim.y * blockIdx.y + threadIdx.y;
-    if ((row < nrow) && (col < ncol)){
+    int row = blockDim.y * blockIdx.y + threadIdx.y;
+    int col = blockDim.x * blockIdx.x + threadIdx.x;
+    if ((row < A_nrow) && (col < B_ncol)){
         int col_start = d_Arow[row];
         int col_end = d_Arow[row + 1];
         float Cval = 0;
         for (int j=col_start; j<col_end; j++){
             int B_row = d_Acol[j];
-            Cval += d_Aval[j] * d_Bval[B_row*B_ncol + col];
+            Cval += d_Aval[j] * d_Bval[B_row*B_ncol + col]; 
         }
         d_Cval[row*B_ncol + col] = Cval;
     }
@@ -131,84 +130,77 @@ void multiply_cuda(struct sparse_mtx *A, struct dense_mtx *B, struct dense_mtx *
 {
     C->nrow = A->nrow;
     C->ncol = B->ncol;
-    int size = C->nrow*C->ncol*sizeof(float);
-    C->val = (float *)malloc(size);
 
-    float *d_Aval, *d_B, *d_C;
+    float *d_Aval, *d_Bval, *d_Cval;
     int32_t *d_Arow, *d_Acol; 
     
     // Copy to device
     int size_Aval = (int) A->nnze * sizeof(float);
-    int size_Arow = (int) A->nrow * sizeof(int32_t);
-    int size_Acol = (int) A->ncol * sizeof(int32_t);
+    int size_Arow = ((int) A->nrow + 1) * sizeof(int32_t);
+    int size_Acol = (int) A->nnze * sizeof(int32_t);
     int size_Bval = (int) B->nrow * (int) B->ncol * sizeof(float);
     int size_Cval = (int) A->nrow * (int) B->ncol * sizeof(float);
+    C->val = (float *)malloc(size_Cval);
     cudaMalloc(&d_Aval, size_Aval);
     cudaMalloc(&d_Arow, size_Arow);
     cudaMalloc(&d_Acol, size_Acol);
-    cudaMalloc(&d_B, size_Bval);
-    cudaMalloc(&d_C, size_Cval);
+    cudaMalloc(&d_Bval, size_Bval);
+    cudaMalloc(&d_Cval, size_Cval);
 
     cudaMemcpy(d_Aval, A->val, size_Aval, cudaMemcpyHostToDevice);
     cudaMemcpy(d_Arow, A->row, size_Arow, cudaMemcpyHostToDevice);
     cudaMemcpy(d_Acol, A->col, size_Acol, cudaMemcpyHostToDevice);
-    cudaMemcpy(d_B, B->val, size_Bval, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_Bval, B->val, size_Bval, cudaMemcpyHostToDevice);
     
     // Kernel invoke
-    int grid_width = (A->nrow + TILE_WIDTH - 1)/TILE_WIDTH;
-    int grid_height = (B->ncol + TILE_WIDTH - 1)/TILE_WIDTH;
+    int grid_width = (B->ncol + TILE_WIDTH - 1)/TILE_WIDTH;
+    int grid_height = (A->nrow + TILE_WIDTH - 1)/TILE_WIDTH;
     dim3 dimGrid(grid_width, grid_height, 1);
     dim3 dimBlock(TILE_WIDTH, TILE_WIDTH, 1);
-    SparseMMKernel<<<dimGrid, dimBlock>>>(A->nrow, A->ncol, B->ncol, d_Arow, d_Acol, d_Aval, d_Bval);
+    SparseMMKernel<<<dimGrid, dimBlock>>>(A->nrow, A->ncol, 
+            B->ncol, 
+            d_Arow, d_Acol, 
+            d_Aval, d_Bval, 
+            d_Cval);
 
     // Copy results
-    cudaMemcpy(C->val, d_C, size_Cval, cudaMemcpyDeviceToHost);
+    cudaMemcpy(C->val, d_Cval, size_Cval, cudaMemcpyDeviceToHost);
 
     cudaFree(d_Aval);
     cudaFree(d_Arow);
     cudaFree(d_Acol);
-    cudaFree(d_B);
-    cudaFree(d_C);
+    cudaFree(d_Bval);
+    cudaFree(d_Cval);
 }
- /*
-void multiply_openmp(struct sparse_mtx *A, struct dense_mtx *B, struct dense_mtx *C)
+
+float max_norm(struct dense_mtx *C1, struct dense_mtx *C2, int num_round)
 {
-    uint32_t ideal_workload = A->nnze/NUM_THREADS;
-    uint32_t workload = 0;
-    int sheet_idx = 0;
-    for (uint32_t i=0; i<A->nrow; i++){
-        workload += (A->row[i+1]-A->row[i]);
-        if (workload > ideal_workload){
-             partition_sheet[sheet_idx] = i;
-             workload = 0;
-             sheet_idx += 1;
+    float max_error = 0;
+    float error = 0;
+    int max_idx = 0;
+    for (uint32_t i=0; i<C1->nrow*C1->ncol; i++){
+        error = fabs(C1->val[i] - C2->val[i]);
+        if (error > max_error){
+            max_error = error;
+            max_idx = i;
         }
     }
-    for (int j=sheet_idx; j<NUM_THREADS; j++){
-        partition_sheet[j] = A->nrow;
-    }
-
-    C->nrow = A->nrow;
-    C->ncol = B->ncol;
-    C->val = (float *)malloc(C->nrow * C->ncol * sizeof(float));
-    
-    if(C->val == NULL)
-        return;
-    #pragma omp parallel for num_threads(NUM_THREADS) schedule(guided)
-    for(int32_t i = 0; i < (int32_t)A->nrow; i++)
-    {
-        int32_t A_col_start = A->row[i];
-        int32_t A_col_stop = A->row[i + 1];
-        
-        for(int32_t j = A_col_start; j < A_col_stop; j++)
-        {
-            int32_t B_row = A->col[j];
-
-            for(int32_t k = 0; k < (int32_t)B->ncol; k++)
-                C->val[i * C->ncol + k] += A->val[j] * B->val[B_row * B->ncol + k];
-        }
-    }
-}*/
+    //std::cout.precision(std::numeric_limits<float>::max_digits10);
+    //std::cout << "max diff " << C1->val[max_idx] << " and " << C2->val[max_idx] << std::endl
+    //    << "max error " << max_error << std::endl;
+    float max_entry = max(fabs(C1->val[max_idx]), std::numeric_limits<float>::min());
+    std::cout << "------   Correctness Test Result   ------" << std::endl;
+    std::cout << "policy        : 'max_rel_err/op < 5.0e-7' " << std::endl;
+    std::cout << "num_op        : " << num_round << std::endl;
+    std::cout << "max_entry     : " << C1->val[max_idx] << ",  " << C2->val[max_idx] << std::endl;
+    std::cout << "max_abs_err   : " << max_error << std::endl;
+    max_error = max_error/max_entry;
+    std::cout << "max_rel_err   : " << max_error << std::endl;
+    max_error = max_error/(float)num_round;
+    std::cout << "max_rel_err/op: " << max_error << std::endl;
+    std::cout << "correctness   : " << std::boolalpha <<(max_error<5.0e-7) << std::endl << std::endl;
+    return max_error;
+}
 
 bool mat_equal(struct dense_mtx *C1, struct dense_mtx *C2)
 {
@@ -239,14 +231,6 @@ int main(int argc, char **argv)
     struct dense_mtx B;
     B.nrow = A.ncol;
     B.ncol = atoi(argv[2]);
-    if(B.ncol < 0)
-    {
-        free(A.row);
-        free(A.col);
-        free(A.val);
-        std::cerr << "Invalid argument for the number of columns of B." << std::endl;
-        return 0;
-    }
     B.val = (float *)malloc(sizeof(float) * B.nrow * B.ncol);
 
     srand((unsigned int)time(NULL));
@@ -263,27 +247,31 @@ int main(int argc, char **argv)
     C2.val = NULL;
 
     struct timespec start, end;
+    #ifndef BENCH
     std::cout << "Single Thread Computation Start" << std::endl;
     clock_gettime(CLOCK_MONOTONIC, &start);
     multiply_single(&A, &B, &C1);
     clock_gettime(CLOCK_MONOTONIC, &end);
     std::cout << "Single Thread Computation End: " << time_elapsed(start, end)  << " ms." << std::endl;
-    /*
-    std::cout << "Pthread Computation Start" << std::endl;
-    start = GetTimeStamp();
-    multiply_pthread(&A, &B, &C2);
-    end = GetTimeStamp();
-    std::cout << "Pthread Computation End: " << end - start << " us." << std::endl << std::endl;
-    */
-    std::cout << "OpenMP Computation Start" << std::endl;
+    #endif
+
+    std::cout << "CUDA Computation Start" << std::endl;
     clock_gettime(CLOCK_MONOTONIC, &start);
-    multiply_openmp(&A, &B, &C2);
+    multiply_cuda(&A, &B, &C2);
+    cudaDeviceSynchronize();
     clock_gettime(CLOCK_MONOTONIC, &end);
-    std::cout << "OpenMP Computation End: " << time_elapsed(start, end) << " ms." << std::endl << std::endl;
+    std::cout << "CUDA Computation End: " << time_elapsed(start, end) << " ms." << std::endl << std::endl;
 
     // TODO: Testing Code by comparing C1 and C2
 
-    std::cout << "correctness : " << mat_equal(&C1, &C2) << std::endl;
+    //std::cout << C1.val[145725055] << std::endl;
+    //std::cout << C2.val[145725055] << std::endl;
+    
+    #ifndef BENCH
+    max_norm(&C1, &C2, A.ncol);
+    //std::cout << "max_err/op  : " << max_error << std::endl;
+    //std::cout << "correctness : " << (max_error<5.0e-7) << std::endl;
+    #endif
 
     free(A.row);
     free(A.col);

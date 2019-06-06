@@ -99,7 +99,7 @@ void multiply_cuda()
     int grid_width = (n+TILE_WIDTH-1)/TILE_WIDTH;
     dim3 dimGrid(grid_width, grid_width, 1);
     dim3 dimBlock(TILE_WIDTH, TILE_WIDTH, 1);
-    MatrixMulKernelS<<<dimGrid, dimBlock>>>(d_A, d_B, d_D, n);
+    MatrixMulKernel<<<dimGrid, dimBlock>>>(d_A, d_B, d_D, n);
 
     // Copy result
     cudaMemcpy(D, d_D, size, cudaMemcpyDeviceToHost);
@@ -139,6 +139,7 @@ int main(int argc, char **argv)
     //
     clock_gettime(CLOCK_MONOTONIC, &begin);
     multiply_cuda();
+    cudaDeviceSynchronize();
     clock_gettime(CLOCK_MONOTONIC, &end);
     cout << "Parallel: " << time_elapsed(begin, end) << " ms" << endl;
 

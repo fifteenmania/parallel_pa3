@@ -17,10 +17,10 @@ P1 : $(UTILS) P1.cu
 	$(CXX) $(ARCH) $(NVFLAGS) --link utils.cpp P1.cu -o P1
 
 P2 : $(UTILS) P2.cu
-	$(CXX) $(NCFLAGS) --link utils.cpp P2.cu -o P2 
+	$(CXX) $(NVFLAGS) --link utils.cpp P2.cu -o P2 
 
 P3 : mmreader.hpp mmreader.cpp $(UTILS) P3.cu
-	$(CXX) $(NCFLAGS) -Xcompiler "-std=c++14" --link mmreader.cpp utils.cpp P3.cu -o P3 
+	$(CXX) $(NVFLAGS) -std=c++11 --link mmreader.cpp utils.cpp P3.cu -o P3 
 
 P1_bench : $(UTILS) P1.cu
 	$(CXX) -DBENCH=1 $(CFLAGS) utils.cpp P1.cpp -o P1 $(LDLIBS)
