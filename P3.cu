@@ -84,10 +84,6 @@ SCsrMatrixfromFile(struct sparse_mtx *A, const char* filePath)
 
 void multiply_single(struct sparse_mtx *A, struct dense_mtx *B, struct dense_mtx *C)
 {
-    C->nrow = A->nrow;
-    C->ncol = B->ncol;
-    C->val = (float *)malloc(C->nrow * C->ncol * sizeof(float));
-
     if(C->val == NULL)
         return;
     for(int32_t i = 0; i < (int32_t)A->nrow; i++)
@@ -128,9 +124,6 @@ void SparseMMKernel(const int A_nrow, const int A_ncol,
 
 void multiply_cuda(struct sparse_mtx *A, struct dense_mtx *B, struct dense_mtx *C)
 {
-    C->nrow = A->nrow;
-    C->ncol = B->ncol;
-
     float *d_Aval, *d_Bval, *d_Cval;
     int32_t *d_Arow, *d_Acol; 
     
@@ -140,7 +133,6 @@ void multiply_cuda(struct sparse_mtx *A, struct dense_mtx *B, struct dense_mtx *
     int size_Acol = (int) A->nnze * sizeof(int32_t);
     int size_Bval = (int) B->nrow * (int) B->ncol * sizeof(float);
     int size_Cval = (int) A->nrow * (int) B->ncol * sizeof(float);
-    C->val = (float *)malloc(size_Cval);
     cudaMalloc(&d_Aval, size_Aval);
     cudaMalloc(&d_Arow, size_Arow);
     cudaMalloc(&d_Acol, size_Acol);
@@ -190,14 +182,12 @@ float max_norm(struct dense_mtx *C1, struct dense_mtx *C2, int num_round)
     //    << "max error " << max_error << std::endl;
     float max_entry = max(fabs(C1->val[max_idx]), std::numeric_limits<float>::min());
     std::cout << "------   Correctness Test Result   ------" << std::endl;
-    std::cout << "policy        : 'max_rel_err/op < 5.0e-7' " << std::endl;
+    std::cout << "policy        : 'max_rel_err < 5.0e-7' " << std::endl;
     std::cout << "num_op        : " << num_round << std::endl;
     std::cout << "max_entry     : " << C1->val[max_idx] << ",  " << C2->val[max_idx] << std::endl;
     std::cout << "max_abs_err   : " << max_error << std::endl;
     max_error = max_error/max_entry;
     std::cout << "max_rel_err   : " << max_error << std::endl;
-    max_error = max_error/(float)num_round;
-    std::cout << "max_rel_err/op: " << max_error << std::endl;
     std::cout << "correctness   : " << std::boolalpha <<(max_error<5.0e-7) << std::endl << std::endl;
     return max_error;
 }
@@ -245,7 +235,15 @@ int main(int argc, char **argv)
     struct dense_mtx C1, C2;
     C1.val = NULL;
     C2.val = NULL;
-
+    
+    C1.nrow = A.nrow;
+    C1.ncol = B.ncol;
+    C1.val = (float *)malloc(C1.nrow * C1.ncol * sizeof(float));
+    
+    C2.nrow = A.nrow;
+    C2.ncol = B.ncol;
+    C2.val = (float *)malloc(C2.nrow * C2.ncol * sizeof(float));
+    
     struct timespec start, end;
     #ifndef BENCH
     std::cout << "Single Thread Computation Start" << std::endl;

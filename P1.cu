@@ -145,8 +145,8 @@ int main(int argc, char **argv)
 
     //print_mat(A, n);
     //print_mat(B, n);
-    print_mat(C, n);
-    print_mat(D, n);
+    //print_mat(C, n);
+    //print_mat(D, n);
 #ifndef BENCH
     // correctness
     fp norm = max_norm(C, D, n);

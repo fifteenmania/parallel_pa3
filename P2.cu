@@ -10,9 +10,9 @@
 using namespace std;
 
 // random matries
-double *A, *A0 = NULL;
+fp *A, *A0 = NULL;
 // results
-double *b, *c, *b0 = NULL;
+fp *b, *c, *b0 = NULL;
 // consts
 int n = 0, p = 0;
 
@@ -20,7 +20,7 @@ int n = 0, p = 0;
 inline int get_pivot(int col)
 {
     int pivot_row = col;
-    double pivot_max = fabs(A[col*n+col]);
+    fp pivot_max = fabs(A[col*n+col]);
     for (int i=col+1; i<n; i++){
         if (fabs(A[i*n+col])>pivot_max){
             pivot_max = fabs(A[i*n+col]);
@@ -32,7 +32,7 @@ inline int get_pivot(int col)
 
 inline void swap_vec(int i, int j)
 {
-    double temp = b[i];
+    fp temp = b[i];
     b[i] = b[j];
     b[j] = temp;
 }
@@ -44,7 +44,7 @@ void GE_single()
         swap_ranges(A+i*n, A+i*n+n, A+piv*n);
         swap_vec(i, piv);
         for (int j=i+1; j<n; j++){
-            double ratio = A[j*n+i]/A[i*n+i];
+            fp ratio = A[j*n+i]/A[i*n+i];
             for (int k=i; k<n; k++){
                 A[j*n+k] -= ratio*A[i*n+k];
             }
@@ -54,6 +54,12 @@ void GE_single()
     return;
 }
 
+
+
+void GE_cuda()
+{
+    return;
+}
 
 /*
 void GE_omp()
@@ -138,7 +144,7 @@ int main(int argc, char **argv)
     // c = Ab
     vmult();
     // correctness
-    double resid = v_l2_norm(c, b0, n);
+    fp resid = v_l2_norm(c, b0, n);
     cout << "Residual: " << resid << endl;
     cout << "Correcct: " << (resid<SIM_THRES) << endl;
 
