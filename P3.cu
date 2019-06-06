@@ -171,7 +171,8 @@ float max_norm(struct dense_mtx *C1, struct dense_mtx *C2, int num_round)
     float error = 0;
     int max_idx = 0;
     for (uint32_t i=0; i<C1->nrow*C1->ncol; i++){
-        error = fabs(C1->val[i] - C2->val[i]);
+        error = fabs(C1->val[i] - C2->val[i])/
+            max(fabs(C1->val[i]), std::numeric_limits<float>::min());
         if (error > max_error){
             max_error = error;
             max_idx = i;
@@ -180,13 +181,12 @@ float max_norm(struct dense_mtx *C1, struct dense_mtx *C2, int num_round)
     //std::cout.precision(std::numeric_limits<float>::max_digits10);
     //std::cout << "max diff " << C1->val[max_idx] << " and " << C2->val[max_idx] << std::endl
     //    << "max error " << max_error << std::endl;
-    float max_entry = max(fabs(C1->val[max_idx]), std::numeric_limits<float>::min());
+    float max_abs_error = fabs(C1->val[max_idx] - C2->val[max_idx]);
     std::cout << "------   Correctness Test Result   ------" << std::endl;
     std::cout << "policy        : 'max_rel_err < 5.0e-7' " << std::endl;
     std::cout << "num_op        : " << num_round << std::endl;
     std::cout << "max_entry     : " << C1->val[max_idx] << ",  " << C2->val[max_idx] << std::endl;
-    std::cout << "max_abs_err   : " << max_error << std::endl;
-    max_error = max_error/max_entry;
+    std::cout << "max_abs_err   : " << max_abs_error << std::endl;
     std::cout << "max_rel_err   : " << max_error << std::endl;
     std::cout << "correctness   : " << std::boolalpha <<(max_error<5.0e-7) << std::endl << std::endl;
     return max_error;

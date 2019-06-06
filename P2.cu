@@ -6,18 +6,11 @@
 #include <algorithm>
 #include "utils.hpp"
 #define SINGLE_SECTION 64
+#define BLK_WIDTH 256
 
 using namespace std;
 
-// random matries
-fp *A, *A0 = NULL;
-// results
-fp *b, *c, *b0 = NULL;
-// consts
-int n = 0, p = 0;
-
-
-inline int get_pivot(int col)
+inline int get_pivot(float *A, int n, int col)
 {
     int pivot_row = col;
     fp pivot_max = fabs(A[col*n+col]);
@@ -30,7 +23,7 @@ inline int get_pivot(int col)
     return pivot_row;
 }
 
-inline void swap_vec(int i, int j)
+inline void swap_vec(float *b, int i, int j)
 {
     fp temp = b[i];
     b[i] = b[j];
@@ -40,9 +33,9 @@ inline void swap_vec(int i, int j)
 void GE_single()
 {
     for (int i=0; i<n-1; i++){
-        int piv = get_pivot(i);
+        int piv = get_pivot(A, n, i);
         swap_ranges(A+i*n, A+i*n+n, A+piv*n);
-        swap_vec(i, piv);
+        swap_vec(b, i, piv);
         for (int j=i+1; j<n; j++){
             fp ratio = A[j*n+i]/A[i*n+i];
             for (int k=i; k<n; k++){
@@ -54,11 +47,39 @@ void GE_single()
     return;
 }
 
-
-
-void GE_cuda()
+__global__
+void RowSubKernel()
 {
-    return;
+
+}
+
+void row_sub(float *A, float *b, float *d_A, float *d_b, int n, int col_idx)
+{
+    int size_A = n * n * sizeof(float);
+    int size_b = n * sizeof(float);
+    cudaMemcpy(d_A, A, size_A, cudaMemcpyHostToDevice);
+    cudaMemcpy(d_b, b, size_b, cudaMemcpyHostToDevice);
+    
+
+    cudaMemcpy(A, d_A, size_A, cudaMemcpyDeviceToHost);
+    cudaMemcpy(b, d_b, size_b, cudaMemcpyDeviceToHost);
+}
+
+void GE_cuda(float *A, float *b, int n)
+{
+    float *d_A, *d_b;
+    int size_A = n * n * sizeof(float);
+    int size_b = n * sizeof(float);
+    cudaMalloc(&d_A, size_A);
+    cudaMalloc(&d_b, size_b);
+    
+    for (int i=0; i<n-1; i++){
+        swap_ranges(A+i*n, A+i*n+n, A+piv*n);
+        swap_vec(b, i, piv);
+        row_sub(A, b, d_A, d_b, n, i);
+    }
+    cudaFree(d_A);
+    cudaFree(d_b);
 }
 
 /*
@@ -95,7 +116,7 @@ void GE_omp()
     return;
 }*/
 
-void backsub()
+void backsub(float *A, float *b, int n)
 {
     for (int i=n-1; i>=0; i--){
         double ratio = b[i]/A[i*n+i];
@@ -107,23 +128,26 @@ void backsub()
     return;
 }
 
-void vmult()
+void vmult(float *A, float *b, float *c, int n)
 {
     for (int i=0; i<n; i++){
         for (int j=0; j<n; j++){
-            c[i] += A0[i*n+j] * b[j];
+            c[i] += A[i*n+j] * b[j];
         }
     }
 }
 
 int main(int argc, char **argv)
 {
-    if (argc !=3){
-        cout << "usage: [n]:size of input [p]:number of threads" << endl;
+    if (argc !=2){
+        cout << "usage: [n]:size of input" << endl;
         return 0;
     }
+    int n;
+    float *A, *b;
+    float *A0, *b0;
+    
     n = atoi(argv[1]);
-    p = atoi(argv[2]);
 
     int seed = time(NULL);
     A = init_rand_mat(n, seed);
@@ -135,14 +159,13 @@ int main(int argc, char **argv)
     struct timespec begin, end;
     // multi thread
     clock_gettime(CLOCK_MONOTONIC, &begin);
-    GE_single();
-    
-    backsub();
+    GE_single(A, b, n);
+    backsub(A, b, n);
     clock_gettime(CLOCK_MONOTONIC, &end);
     cout << "Parallel: " << time_elapsed(begin, end) << " ms" << endl;
     
     // c = Ab
-    vmult();
+    vmult(A0, b, c, n);
     // correctness
     fp resid = v_l2_norm(c, b0, n);
     cout << "Residual: " << resid << endl;
