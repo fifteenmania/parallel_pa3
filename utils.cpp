@@ -2,6 +2,7 @@
 
 
 using namespace std;
+
 double time_elapsed(struct timespec &start, struct timespec &end)
 {
     double time = end.tv_sec - start.tv_sec;
@@ -57,7 +58,7 @@ fp *init_rand_vec(int n, int seed)
 }
 
 
-fp *cp_mat(double *A, int n)
+fp *cp_mat(fp *A, int n)
 {
     fp *B = (fp *)malloc(n*n*sizeof(fp));
     memcpy(B, A, n*n*sizeof(fp));
@@ -74,7 +75,7 @@ fp *cp_vec(fp *A, int n)
 
 void print_mat(fp *A, int n)
 {
-    cout << setprecision(3) << fixed;
+    cout << setprecision(7) << fixed;
     for (int i=0; i<n; i++){
         for (int j=0; j<n; j++){
             cout << A[i*n+j] << " ";
@@ -83,6 +84,19 @@ void print_mat(fp *A, int n)
     }
     cout << endl;
 }
+
+void print_mat_part(fp *A, int n, int row1, int row2)
+{
+    cout << setprecision(7) << fixed;
+    for (int i=row1; i<row2; i++){
+        for (int j=0; j<n; j++){
+            cout << A[i*n+j] << " ";
+        }
+        cout << endl;
+    }
+    cout << endl;
+}
+
 
 void print_vec(fp *A, int n)
 {
@@ -101,7 +115,7 @@ fp l2_norm(fp *A, fp *B, int n)
         error = (A[i] - B[i]);
         cum_error += error * error;
     }
-    return sqrt(cum_error/n/n);
+    return sqrtf(cum_error/n/n);
 }
 
 fp v_l2_norm(fp *A, fp *B, int n)
@@ -111,7 +125,7 @@ fp v_l2_norm(fp *A, fp *B, int n)
         fp error = A[i] - B[i];
         cum_error += error * error;
     }
-    return sqrt(cum_error/n);
+    return sqrtf(cum_error/n);
 }
 /*
 fp max_norm(fp *A, fp *B, int n)

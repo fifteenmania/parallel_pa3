@@ -66,12 +66,12 @@ void MatrixMulKernelS(float *d_A, float *d_B, float *d_C, int width)
             if ((row_idx < width) && (idx_Ax < width)){
                 subTileA[ty][tx] = d_A[idx_A];
             } else{
-                subTileA[ty][tx] = 100;
+                subTileA[ty][tx] = 0;
             }
             if ((idx_By < width) && (col_idx < width)){
                 subTileB[ty][tx] = d_B[idx_B];
             } else{
-                subTileB[ty][tx] = 1;
+                subTileB[ty][tx] = 0;
             }
             __syncthreads();
             for (int k=0; k<TILE_WIDTH; k++){

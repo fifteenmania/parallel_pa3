@@ -7,6 +7,9 @@
 #include <cstring>
 #include <math.h>
 #include <limits>
+#include <cstdio>
+#include <cuda.h>
+#include <cuda_runtime.h>
 #define SIM_THRES 5.0e-7
 
 typedef float fp;
@@ -18,6 +21,7 @@ fp *init_ones_mat(int);
 fp *init_zeros_vec(int);
 fp *init_rand_vec(int, int);
 void print_mat(fp *, int);
+void print_mat_part(fp *, int, int, int);
 void print_vec(fp *, int);
 fp *cp_mat(fp *, int);
 fp *cp_vec(fp *, int);
