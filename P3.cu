@@ -123,12 +123,14 @@ void SparseMMKernel(const int A_nrow, const int A_ncol,
 
 void multiply_cuda(struct sparse_mtx *A, struct dense_mtx *B, struct dense_mtx *C)
 {
+    if (C->val == NULL)
+        return;
     float *d_Aval, *d_Bval, *d_Cval;
     int32_t *d_Arow, *d_Acol; 
     
     // Copy to device
     int size_Aval = (int) A->nnze * sizeof(float);
-    int size_Arow = ((int) A->nrow + 1) * sizeof(int32_t);
+    int size_Arow = (A->nrow + 1) * sizeof(int32_t);
     int size_Acol = (int) A->nnze * sizeof(int32_t);
     int size_Bval = (int) B->nrow * (int) B->ncol * sizeof(float);
     int size_Cval = (int) C->nrow * (int) C->ncol * sizeof(float);
@@ -142,11 +144,10 @@ void multiply_cuda(struct sparse_mtx *A, struct dense_mtx *B, struct dense_mtx *
     cudaMemcpy(d_Arow, A->row, size_Arow, cudaMemcpyHostToDevice);
     cudaMemcpy(d_Acol, A->col, size_Acol, cudaMemcpyHostToDevice);
     cudaMemcpy(d_Bval, B->val, size_Bval, cudaMemcpyHostToDevice);
-    
     // Kernel invoke
-    int grid_width = (C->ncol + TILE_WIDTH - 1)/TILE_WIDTH;
-    int grid_height = (C->nrow + TILE_WIDTH - 1)/TILE_WIDTH;
-    dim3 dimGrid(grid_width, grid_heigth, 1);
+    int grid_width = ((int)C->ncol + TILE_WIDTH - 1)/TILE_WIDTH;
+    int grid_height = ((int)C->nrow + TILE_WIDTH - 1)/TILE_WIDTH;
+    dim3 dimGrid(grid_width, grid_height, 1);
     dim3 dimBlock(TILE_WIDTH, TILE_WIDTH, 1);
     SparseMMKernel<<<dimGrid, dimBlock>>>(A->nrow, A->ncol, 
             B->ncol, 
@@ -164,14 +165,14 @@ void multiply_cuda(struct sparse_mtx *A, struct dense_mtx *B, struct dense_mtx *
     cudaFree(d_Cval);
 }
 
-float max_norm(struct dense_mtx *C1, struct dense_mtx *C2, int num_round)
+float max_norm_struct(struct dense_mtx *C1, struct dense_mtx *C2, int num_round)
 {
     float max_error = 0;
     float error = 0;
     float max_abs_error = 0;
     float abs_error = 0;
     int max_idx = 0;
-    for (uint32_t i=0; i<C1->nrow*C1->ncol; i++){
+    for (uint32_t i=0; i<(C1->nrow*C1->ncol); i++){
         abs_error = fabs(C1->val[i] - C2->val[i]);
         error = abs_error / max(fabs(C1->val[i]), std::numeric_limits<float>::min());
         if (error > max_error){
@@ -185,7 +186,7 @@ float max_norm(struct dense_mtx *C1, struct dense_mtx *C2, int num_round)
     //std::cout << "max diff " << C1->val[max_idx] << " and " << C2->val[max_idx] << std::endl
     //    << "max error " << max_error << std::endl;
     std::cout << "------   Correctness Test Result   ------" << std::endl;
-    std::cout << "policy        : 'max_rel_err < 5.0e-7' " << std::endl;
+    std::cout << "policy        : 'max_rel_err < 5.0e-7' " <<std::endl;
     std::cout << "num_op        : " << num_round << std::endl;
     std::cout << "max_entry     : " << C1->val[max_idx] << ",  " << C2->val[max_idx] << std::endl;
     std::cout << "max_abs_err   : " << max_abs_error << std::endl;
@@ -245,7 +246,8 @@ int main(int argc, char **argv)
     C2.nrow = A.nrow;
     C2.ncol = B.ncol;
     C2.val = (float *)malloc(C2.nrow * C2.ncol * sizeof(float));
-    
+   
+    //std::cout << C1.nrow << C1.ncol << C2.nrow << C2.ncol << std::endl;
     struct timespec start, end;
     #ifndef BENCH
     std::cout << "Single Thread Computation Start" << std::endl;
@@ -258,17 +260,16 @@ int main(int argc, char **argv)
     std::cout << "CUDA Computation Start" << std::endl;
     clock_gettime(CLOCK_MONOTONIC, &start);
     multiply_cuda(&A, &B, &C2);
-    cudaDeviceSynchronize();
     clock_gettime(CLOCK_MONOTONIC, &end);
     std::cout << "CUDA Computation End: " << time_elapsed(start, end) << " ms." << std::endl << std::endl;
 
     // TODO: Testing Code by comparing C1 and C2
 
-    //std::cout << C1.val[145725055] << std::endl;
-    //std::cout << C2.val[145725055] << std::endl;
+    //std::cout << C1.val[11000000] << std::endl;
+    //std::cout << C2.val[11000000] << std::endl;
     
     #ifndef BENCH
-    max_norm(&C1, &C2, A.ncol);
+    max_norm_struct(&C1, &C2, A.ncol);
     //std::cout << "max_err/op  : " << max_error << std::endl;
     //std::cout << "correctness : " << (max_error<5.0e-7) << std::endl;
     #endif

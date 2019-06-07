@@ -7,9 +7,6 @@
 #include <cstring>
 #include <math.h>
 #include <limits>
-#include <cstdio>
-#include <cuda.h>
-#include <cuda_runtime.h>
 #define SIM_THRES 5.0e-7
 
 typedef float fp;
