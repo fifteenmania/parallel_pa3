@@ -6,7 +6,7 @@
 #include <algorithm>
 #include "utils.hpp"
 #define SINGLE_SECTION 64
-#define BLK_WIDTH 256
+#define TILE_WIDTH 16
 
 using namespace std;
 
@@ -30,7 +30,7 @@ inline void swap_vec(float *b, int i, int j)
     b[j] = temp;
 }
 
-void GE_single()
+void GE_single(float *A, float *b, int n)
 {
     for (int i=0; i<n-1; i++){
         int piv = get_pivot(A, n, i);
@@ -48,9 +48,17 @@ void GE_single()
 }
 
 __global__
-void RowSubKernel()
+void RowSubKernel(float *d_A, float *d_b, int n, int col_idx)
 {
-
+    int row = blockDim.y * blockIdx.y + threadIdx.y;
+    int col = blockDim.x * blockIdx.x + threadIdx.x;
+    if ((row < n) && (col && n)){
+        float pivot_val = d_A[col_idx*n+col_idx];
+        float rowhd_val = d_A[row*n+col_idx];
+        float row1_val = d_A[col_idx*n+col];
+        float row2_val = d_A[row*n+col];
+        d_A[row*n+col] = row2_val - (row1_val * rowhd_val / pivot_val);
+    }
 }
 
 void row_sub(float *A, float *b, float *d_A, float *d_b, int n, int col_idx)
@@ -60,6 +68,11 @@ void row_sub(float *A, float *b, float *d_A, float *d_b, int n, int col_idx)
     cudaMemcpy(d_A, A, size_A, cudaMemcpyHostToDevice);
     cudaMemcpy(d_b, b, size_b, cudaMemcpyHostToDevice);
     
+    int grid_width = (n + TILE_WIDTH - 1)/TILE_WIDTH;
+    dim3 dimGrid = (grid_width, grid_width, 1);
+    dim3 dimBlock = (TILE_WIDTH, TILE_WIDTH, 1);
+
+    RowSubKernel<<<dimGrid, dimBlock>>>(d_A, d_b, n, col_idx);
 
     cudaMemcpy(A, d_A, size_A, cudaMemcpyDeviceToHost);
     cudaMemcpy(b, d_b, size_b, cudaMemcpyDeviceToHost);
@@ -74,6 +87,7 @@ void GE_cuda(float *A, float *b, int n)
     cudaMalloc(&d_b, size_b);
     
     for (int i=0; i<n-1; i++){
+        int piv = get_pivot(A, n, i);
         swap_ranges(A+i*n, A+i*n+n, A+piv*n);
         swap_vec(b, i, piv);
         row_sub(A, b, d_A, d_b, n, i);
@@ -144,7 +158,7 @@ int main(int argc, char **argv)
         return 0;
     }
     int n;
-    float *A, *b;
+    float *A, *b, *c;
     float *A0, *b0;
     
     n = atoi(argv[1]);
@@ -159,7 +173,7 @@ int main(int argc, char **argv)
     struct timespec begin, end;
     // multi thread
     clock_gettime(CLOCK_MONOTONIC, &begin);
-    GE_single(A, b, n);
+    GE_cuda(A, b, n);
     backsub(A, b, n);
     clock_gettime(CLOCK_MONOTONIC, &end);
     cout << "Parallel: " << time_elapsed(begin, end) << " ms" << endl;

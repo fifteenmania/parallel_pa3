@@ -119,10 +119,10 @@ int main(int argc, char **argv)
     n = atoi(argv[1]);
 
     int seed = time(NULL);
-    //A = init_rand_mat(n, seed);
-    //B = init_rand_mat(n, seed+1);
-    A = init_ones_mat(n);
-    B = init_ones_mat(n);
+    A = init_rand_mat(n, seed);
+    B = init_rand_mat(n, seed+1);
+    //A = init_ones_mat(n);
+    //B = init_ones_mat(n);
     C = (fp *)init_zeros_mat(n);
     D = (fp *)init_zeros_mat(n);
     
@@ -149,9 +149,9 @@ int main(int argc, char **argv)
     //print_mat(D, n);
 #ifndef BENCH
     // correctness
-    fp norm = max_norm(C, D, n);
-    cout << "residue:  " << norm << endl;
-    cout << "Correct:  " << (norm<SIM_THRES) << endl;
+    max_norm(C, D, n);
+    //cout << "residue:  " << norm << endl;
+    //cout << "Correct:  " << (norm<SIM_THRES) << endl;
 #endif
     return 0;
 }

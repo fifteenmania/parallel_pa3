@@ -113,7 +113,7 @@ fp v_l2_norm(fp *A, fp *B, int n)
     }
     return sqrt(cum_error/n);
 }
-
+/*
 fp max_norm(fp *A, fp *B, int n)
 {
     fp error;
@@ -125,6 +125,36 @@ fp max_norm(fp *A, fp *B, int n)
         }
     }
     return max_error/n;
+}*/
+
+float max_norm(float *A, float *B, int n)
+{
+    float max_error = 0;
+    float error = 0;
+    float max_abs_error = 0;
+    float abs_error = 0;
+    int max_idx = 0;
+    for (int i=0; i<n*n; i++){
+        abs_error = fabs(A[i] - B[i]);
+        error = abs_error / max((float)fabs(A[i]), numeric_limits<float>::min());
+        if (error > max_error){
+            max_error = error;
+            max_idx = i;
+        }
+        if (abs_error > max_abs_error)
+            max_abs_error = abs_error;
+    }
+    //std::cout.precision(std::numeric_limits<float>::max_digits10);
+    //std::cout << "max diff " << C1->val[max_idx] << " and " << C2->val[max_idx] << std::endl
+    //    << "max error " << max_error << std::endl;
+    std::cout << "------   Correctness Test Result   ------" << std::endl;
+    std::cout << "policy        : 'max_rel_err < 5.0e-7' " << std::endl;
+    std::cout << "num_op        : " << n << std::endl;
+    std::cout << "max_entry     : " << A[max_idx] << ",  " << B[max_idx] << std::endl;
+    std::cout << "max_abs_err   : " << max_abs_error << std::endl;
+    std::cout << "max_rel_err   : " << max_error << std::endl;
+    std::cout << "correctness   : " << std::boolalpha <<(max_error<5.0e-7) << std::endl << std::endl;
+    return max_error;
 }
 
 bool mat_equal(fp *A, fp *B, int n)

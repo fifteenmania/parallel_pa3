@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <cstring>
 #include <math.h>
+#include <limits>
 #define SIM_THRES 5.0e-7
 
 typedef float fp;
@@ -21,6 +22,7 @@ void print_vec(fp *, int);
 fp *cp_mat(fp *, int);
 fp *cp_vec(fp *, int);
 fp l2_norm(fp *, fp *, int);
+fp v_l2_norm(fp *, fp *, int);
 fp max_norm(fp *, fp *, int);
 bool mat_equal(fp *, fp *, int);
 
