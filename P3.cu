@@ -131,7 +131,7 @@ void multiply_cuda(struct sparse_mtx *A, struct dense_mtx *B, struct dense_mtx *
     int size_Arow = ((int) A->nrow + 1) * sizeof(int32_t);
     int size_Acol = (int) A->nnze * sizeof(int32_t);
     int size_Bval = (int) B->nrow * (int) B->ncol * sizeof(float);
-    int size_Cval = (int) A->nrow * (int) B->ncol * sizeof(float);
+    int size_Cval = (int) C->nrow * (int) C->ncol * sizeof(float);
     cudaMalloc(&d_Aval, size_Aval);
     cudaMalloc(&d_Arow, size_Arow);
     cudaMalloc(&d_Acol, size_Acol);
@@ -144,9 +144,9 @@ void multiply_cuda(struct sparse_mtx *A, struct dense_mtx *B, struct dense_mtx *
     cudaMemcpy(d_Bval, B->val, size_Bval, cudaMemcpyHostToDevice);
     
     // Kernel invoke
-    int grid_width = (B->ncol + TILE_WIDTH - 1)/TILE_WIDTH;
-    int grid_height = (A->nrow + TILE_WIDTH - 1)/TILE_WIDTH;
-    dim3 dimGrid(grid_width, grid_height, 1);
+    int grid_width = (C->ncol + TILE_WIDTH - 1)/TILE_WIDTH;
+    int grid_height = (C->nrow + TILE_WIDTH - 1)/TILE_WIDTH;
+    dim3 dimGrid(grid_width, grid_heigth, 1);
     dim3 dimBlock(TILE_WIDTH, TILE_WIDTH, 1);
     SparseMMKernel<<<dimGrid, dimBlock>>>(A->nrow, A->ncol, 
             B->ncol, 

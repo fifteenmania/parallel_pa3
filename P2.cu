@@ -5,7 +5,7 @@
 #include <math.h>
 #include <algorithm>
 #include "utils.hpp"
-#define SINGLE_SECTION 128
+#define SINGLE_SECTION 64
 #define TILE_WIDTH 16
 
 using namespace std;
